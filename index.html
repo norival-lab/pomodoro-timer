@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timer Pomodoro Moderno</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        -webkit-tap-highlight-color: transparent; /* Remove o destaque azul ao tocar em mobile */
+      }
+      .timer-display {
+        font-size: 6rem; /* Tamanho base para desktop */
+      }
+      /* Ajustes para telas menores */
+      @media (max-width: 640px) {
+        .timer-display {
+          font-size: 4.5rem; /* Tamanho menor para mobile */
+        }
+        .mode-buttons button,
+        .control-buttons button {
+          padding: 0.6rem 1rem; /* Padding menor para botões em mobile */
+          font-size: 0.9rem;
+        }
+      }
+      .progress-ring__circle {
+        transition: stroke-dashoffset 0.35s;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+      }
+      .animated-gradient {
+        background-size: 200% 200%;
+        animation: gradientAnimation 10s ease infinite;
+      }
+      @keyframes gradientAnimation {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+      .button-shadow {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+      .button-shadow:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+      .button-active {
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-900 to-slate-800 text-white min-h-screen flex flex-col items-center justify-center p-4 selection:bg-sky-500 selection:text-white"
+  >
+    <div class="bg-slate-800/70 backdrop-blur-md p-6 sm:p-10 rounded-3xl shadow-2xl w-full max-w-md text-center">
+      <h1 class="text-3xl sm:text-4xl font-bold mb-2 text-sky-400">Timer Pomodoro</h1>
+      <p id="current-mode-display" class="text-lg text-slate-400 mb-6">Selecione um modo para começar.</p>
+
+      <div class="mode-buttons flex flex-wrap justify-center gap-3 mb-8">
+        <button
+          id="pomodoro-mode"
+          class="bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2 px-4 sm:py-3 sm:px-6 rounded-lg transition-all duration-200 ease-in-out button-shadow transform hover:scale-105"
+        >
+          Pomodoro
+        </button>
+        <button
+          id="short-break-mode"
+          class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 sm:py-3 sm:px-6 rounded-lg transition-all duration-200 ease-in-out button-shadow transform hover:scale-105"
+        >
+          Pausa Curta
+        </button>
+        <button
+          id="long-break-mode"
+          class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 sm:py-3 sm:px-6 rounded-lg transition-all duration-200 ease-in-out button-shadow transform hover:scale-105"
+        >
+          Pausa Longa
+        </button>
+      </div>
+
+      <div class="relative w-60 h-60 sm:w-72 sm:h-72 mx-auto mb-8">
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 120 120">
+          <circle
+            class="text-slate-700"
+            stroke-width="8"
+            stroke="currentColor"
+            fill="transparent"
+            r="56"
+            cx="60"
+            cy="60"
+          />
+          <circle
+            id="progress-ring"
+            class="text-sky-400 progress-ring__circle"
+            stroke-width="8"
+            stroke-dasharray="351.858"
+            stroke-dashoffset="351.858"
+            stroke-linecap="round"
+            stroke="currentColor"
+            fill="transparent"
+            r="56"
+            cx="60"
+            cy="60"
+          />
+        </svg>
+        <div
+          id="timer-display"
+          class="timer-display absolute inset-0 flex items-center justify-center font-bold text-slate-100"
+        >
+          25:00
+        </div>
+      </div>
+
+      <div class="control-buttons flex justify-center gap-3 mb-6">
+        <button
+          id="start-button"
+          class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg transition-all duration-200 ease-in-out button-shadow transform hover:scale-105"
+        >
+          Iniciar
+        </button>
+        <button
+          id="pause-button"
+          class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-8 rounded-lg transition-all duration-200 ease-in-out button-shadow transform hover:scale-105 hidden"
+        >
+          Pausar
+        </button>
+        <button
+          id="reset-button"
+          class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-8 rounded-lg transition-all duration-200 ease-in-out button-shadow transform hover:scale-105"
+        >
+          Reiniciar
+        </button>
+      </div>
+
+      <div class="text-slate-400 text-sm flex items-center justify-center gap-1">
+        <span id="pomodoros-completed" class="font-semibold text-sky-400">🍅 0</span>
+      </div>
+    </div>
+
+    <div
+      id="notification-modal"
+      class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 hidden z-50"
+    >
+      <div class="bg-slate-800 p-8 rounded-xl shadow-2xl text-center max-w-sm w-full">
+        <h2 id="modal-title" class="text-2xl font-bold text-sky-400 mb-4">Tempo Esgotado!</h2>
+        <p id="modal-message" class="text-slate-300 mb-6">Seu tempo de foco terminou. Hora de uma pausa!</p>
+        <button
+          id="modal-close-button"
+          class="bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+
+    <script>
+      // Elementos da DOM
+      const timerDisplay = document.getElementById('timer-display');
+      const currentModeDisplay = document.getElementById('current-mode-display');
+      const startButton = document.getElementById('start-button');
+      const pauseButton = document.getElementById('pause-button');
+      const resetButton = document.getElementById('reset-button');
+      const pomodoroModeButton = document.getElementById('pomodoro-mode');
+      const shortBreakModeButton = document.getElementById('short-break-mode');
+      const longBreakModeButton = document.getElementById('long-break-mode');
+      const pomodorosCompletedDisplay = document.getElementById('pomodoros-completed');
+      const progressRing = document.getElementById('progress-ring');
+      const notificationModal = document.getElementById('notification-modal');
+      const modalTitle = document.getElementById('modal-title');
+      const modalMessage = document.getElementById('modal-message');
+      const modalCloseButton = document.getElementById('modal-close-button');
+
+      // Configurações do Timer com Emojis
+      const modes = {
+        pomodoro: { duration: 25 * 60, name: 'Pomodoro', color: 'text-sky-400', emoji: '🍅' },
+        shortBreak: { duration: 5 * 60, name: 'Pausa Curta', color: 'text-green-400', emoji: '☕' },
+        longBreak: { duration: 15 * 60, name: 'Pausa Longa', color: 'text-indigo-400', emoji: '🧘' },
+      };
+
+      let currentMode = 'pomodoro';
+      let timeLeft = modes[currentMode].duration;
+      let timerInterval = null;
+      let isPaused = true;
+      let pomodorosCompleted = 0;
+
+      const circumference = 2 * Math.PI * 56; // 2 * PI * raio (56)
+      progressRing.style.strokeDasharray = `${circumference} ${circumference}`;
+      progressRing.style.strokeDashoffset = circumference;
+
+      // Sintetizador para som de notificação
+      let synth;
+      if (typeof Tone !== 'undefined') {
+        synth = new Tone.Synth().toDestination();
+      } else {
+        console.warn('Tone.js não carregado. Notificações sonoras desabilitadas.');
+      }
+
+      // Funções do Timer
+      function updateDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+        // Atualiza o título do documento com emoji e tempo
+        if (!isPaused || timeLeft < modes[currentMode].duration) {
+          // Se estiver rodando ou já rodou alguma vez
+          document.title = `${modes[currentMode].emoji} ${timerDisplay.textContent} - ${modes[currentMode].name}`;
+        } else {
+          // Se estiver pausado no início ou resetado
+          document.title = `${modes[currentMode].emoji} ${modes[currentMode].name}`;
+        }
+
+        const progress = ((modes[currentMode].duration - timeLeft) / modes[currentMode].duration) * circumference;
+        progressRing.style.strokeDashoffset = circumference - progress;
+      }
+
+      function playNotificationSound() {
+        if (synth) {
+          try {
+            if (Tone.context.state !== 'running') {
+              Tone.start();
+            }
+            synth.triggerAttackRelease('C5', '0.5s', Tone.now());
+            synth.triggerAttackRelease('G5', '0.5s', Tone.now() + 0.3);
+          } catch (error) {
+            console.error('Erro ao tocar som de notificação:', error);
+          }
+        }
+      }
+
+      function showNotificationModal(title, message) {
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+        notificationModal.classList.remove('hidden');
+      }
+
+      function hideNotificationModal() {
+        notificationModal.classList.add('hidden');
+      }
+
+      modalCloseButton.addEventListener('click', hideNotificationModal);
+
+      function startTimer() {
+        if (isPaused) {
+          isPaused = false;
+          startButton.classList.add('hidden');
+          pauseButton.classList.remove('hidden');
+          currentModeDisplay.textContent = `${modes[currentMode].emoji} Em ${modes[currentMode].name}...`;
+
+          timerInterval = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+
+            if (timeLeft < 0) {
+              clearInterval(timerInterval);
+              playNotificationSound();
+
+              let modalTitleText = 'Tempo Esgotado!';
+              let modalMessageText = `Seu tempo de ${modes[currentMode].name.toLowerCase()} terminou.`;
+
+              if (currentMode === 'pomodoro') {
+                pomodorosCompleted++;
+                pomodorosCompletedDisplay.textContent = `${modes.pomodoro.emoji} ${pomodorosCompleted}`;
+                modalMessageText += ' Hora de uma pausa!';
+                if (pomodorosCompleted % 4 === 0) {
+                  switchMode('longBreak');
+                } else {
+                  switchMode('shortBreak');
+                }
+              } else {
+                modalMessageText += ' Hora de voltar ao foco!';
+                switchMode('pomodoro');
+              }
+              showNotificationModal(modalTitleText, modalMessageText);
+              resetTimer(false);
+            }
+          }, 1000);
+        }
+      }
+
+      function pauseTimer() {
+        isPaused = true;
+        clearInterval(timerInterval);
+        startButton.classList.remove('hidden');
+        pauseButton.classList.add('hidden');
+        currentModeDisplay.textContent = `${modes[currentMode].emoji} ${modes[currentMode].name} (Pausado)`;
+        updateDisplay(); // Atualiza o título da página para refletir o estado pausado
+      }
+
+      function resetTimer(resetPomodorosCounter = true) {
+        isPaused = true;
+        clearInterval(timerInterval);
+        timeLeft = modes[currentMode].duration;
+        if (resetPomodorosCounter) {
+          pomodorosCompleted = 0;
+          pomodorosCompletedDisplay.textContent = `${modes.pomodoro.emoji} ${pomodorosCompleted}`;
+        }
+        startButton.classList.remove('hidden');
+        pauseButton.classList.add('hidden');
+        // Alteração aqui: remove "Modo:"
+        currentModeDisplay.textContent = `${modes[currentMode].emoji} ${modes[currentMode].name}`;
+        progressRing.style.strokeDashoffset = circumference;
+        updateDisplay(); // Atualiza o display e o título da página
+      }
+
+      function switchMode(newMode) {
+        currentMode = newMode;
+        timeLeft = modes[currentMode].duration;
+        isPaused = true;
+        clearInterval(timerInterval);
+
+        startButton.classList.remove('hidden');
+        pauseButton.classList.add('hidden');
+        // Alteração aqui: remove "Modo:"
+        currentModeDisplay.textContent = `${modes[currentMode].emoji} ${modes[currentMode].name}`;
+
+        progressRing.classList.remove('text-sky-400', 'text-green-400', 'text-indigo-400');
+        progressRing.classList.add(modes[currentMode].color);
+
+        const mainTitleH1 = document.querySelector('h1');
+        mainTitleH1.classList.remove('text-sky-400', 'text-green-400', 'text-indigo-400');
+        mainTitleH1.classList.add(modes[currentMode].color);
+
+        progressRing.style.strokeDashoffset = circumference;
+        updateDisplay();
+      }
+
+      // Event Listeners para os botões
+      startButton.addEventListener('click', () => {
+        if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+          Tone.start()
+            .then(() => {
+              console.log('Contexto de áudio iniciado.');
+              startTimer();
+            })
+            .catch((e) => console.error('Erro ao iniciar contexto de áudio:', e));
+        } else {
+          startTimer();
+        }
+      });
+      pauseButton.addEventListener('click', pauseTimer);
+      resetButton.addEventListener('click', () => resetTimer(true));
+
+      pomodoroModeButton.addEventListener('click', () => switchMode('pomodoro'));
+      shortBreakModeButton.addEventListener('click', () => switchMode('shortBreak'));
+      longBreakModeButton.addEventListener('click', () => switchMode('longBreak'));
+
+      // Inicialização
+      switchMode('pomodoro');
+    </script>
+  </body>
+</html>
